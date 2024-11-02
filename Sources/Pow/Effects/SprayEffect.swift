@@ -1,10 +1,6 @@
 import SwiftUI
 import simd
 
-#if os(iOS)
-import CoreHaptics
-#endif
-
 public extension AnyChangeEffect {
     /// An effect that emits multiple particles in different shades and sizes moving up from the origin point.
     ///
@@ -22,13 +18,9 @@ public extension AnyChangeEffect {
 
 internal struct SpraySimulation<ParticleView: View>: ViewModifier, Simulative {
     var particle: ParticleView
-
     var impulseCount: Int = 0
-
     var initialVelocity: CGFloat = 0.0
-
     var origin: UnitPoint
-
     private let spring = Spring(zeta: 1, stiffness: 30)
 
     private struct Ping: Identifiable {
@@ -40,9 +32,7 @@ internal struct SpraySimulation<ParticleView: View>: ViewModifier, Simulative {
 
     @State
     private var pings: [Ping] = []
-
     private let layer: ParticleLayer
-    
     @Environment(\.particleLayerNames)
     var particleLayerNames
 
@@ -80,7 +70,6 @@ internal struct SpraySimulation<ParticleView: View>: ViewModifier, Simulative {
 
             Canvas { context, size in
                 var symbols: [GraphicsContext.ResolvedSymbol] = []
-
                 var i = 0
                 var nextSymbol: GraphicsContext.ResolvedSymbol? = context.resolveSymbol(id: i)
                 while let symbol = nextSymbol {
@@ -102,7 +91,7 @@ internal struct SpraySimulation<ParticleView: View>: ViewModifier, Simulative {
                 })
                 let value: SIMD16<Float>         = indices / 10
 
-                /// To simply the expression :rolleyes:
+                /// To simplify the expression :rolleyes:
                 let adjustedValue: SIMD16<Float> = (value - 0.5)
 
                 // in degrees
@@ -112,38 +101,27 @@ internal struct SpraySimulation<ParticleView: View>: ViewModifier, Simulative {
                     var rng = SeededRandomNumberGenerator(seed: ping.id)
 
                     let symbolOffset = (0...10).randomElement(using: &rng) ?? 0
-
                     let value2: SIMD16<Float>  = SIMD16<Float>.random(in: 0.0 ... 1.0, using: &rng) + scaleFactors
-
                     let insetAmount: Float = cos(ping.progress) * pow(ping.progress, 1) * -Float(symbolHeight) * 2.5
-
                     let phases: SIMD16<Float>     = (ping.progress * 0.75) + value2
                     let sineScales: SIMD16<Float> = simd_abs(sin(phases * SIMD16(repeating: .pi)))
                     let scales: SIMD16<Float>     = sineScales * (1.0 - pow(ping.progress, 8.0)) * pow(ping.progress, 0.25)
-
                     let brightness: SIMD16<Float> = .random(in: -0.1 ... 0.1, using: &rng)
-
                     let x: SIMD16<Float> = adjustedValue * (sin(ping.progress * Float.pi) * Float(symbolWidth) * -2)
                     let y: SIMD16<Float> = insetAmount - (value2 * ping.progress) * Float(symbolHeight) * 2.5
 
                     for i in 0...10 {
                         let point = CGPoint(x: x[i], y: y[i])
-
                         let angle = Angle(degrees: angles[i])
                         let scale = Double(scales[i])
-
                         let symbol = symbols[(i + symbolOffset) % symbols.count]
 
-                        // If we're drawing in the particle group, fade in the
-                        // the particles as we're no longer drawing behind the
-                        // view.
                         if hasParticleLayer {
                             context.opacity = clamp(Double(ping.progress) * 4)
                         }
 
                         context.drawLayer { context in
                             context.addFilter(.brightness(Double(brightness[i])))
-
                             context.rotate(by: .degrees(Double(ping.progress) * -angle.degrees + -angle.degrees * 0.25))
                             context.translateBy(x: point.x, y: point.y)
                             context.scaleBy(x: scale, y: scale)
@@ -172,7 +150,6 @@ internal struct SpraySimulation<ParticleView: View>: ViewModifier, Simulative {
             .particleLayerBackground(layer: layer, isEnabled: !isSimulationPaused) {
                 overlay
             }
-            .usesCustomHaptics()
             .onChange(of: impulseCount) { newValue in
                 let ping = Ping(
                     id: UUID(),
@@ -184,12 +161,6 @@ internal struct SpraySimulation<ParticleView: View>: ViewModifier, Simulative {
                 withAnimation(nil) {
                     pings.append(ping)
                 }
-
-                #if os(iOS)
-                if let hapticPattern {
-                    Haptics.play(hapticPattern)
-                }
-                #endif
             }
     }
 
@@ -218,37 +189,6 @@ internal struct SpraySimulation<ParticleView: View>: ViewModifier, Simulative {
             abs(ping.progress - ping.target) < 0.04 && ping.velocity < 0.04
         }
     }
-
-    #if os(iOS)
-    private var hapticPattern: CHHapticPattern? {
-        var rng = SeededRandomNumberGenerator(seed: 123)
-
-        return try? CHHapticPattern(
-            events: (0 ..< 5).map { i in
-                let i = Float(i)
-
-                let relativeTime: TimeInterval
-
-                if i == 0 {
-                    relativeTime = 0
-                } else {
-                    relativeTime = Double(i * 0.03) + .random(in: -0.005 ... 0.005, using: &rng)
-                }
-
-                return CHHapticEvent(
-                    eventType: .hapticContinuous,
-                    parameters: [
-                        CHHapticEventParameter(parameterID: .hapticIntensity, value: 0.6 * (i / 5) + .random(in: -0.2 ... 0.2, using: &rng)),
-                        CHHapticEventParameter(parameterID: .hapticSharpness, value: 0.2)
-                    ],
-                    relativeTime: relativeTime,
-                    duration: 0.05
-                )
-            },
-            parameterCurves: []
-        )
-    }
-    #endif
 }
 
 private struct RelativeOffsetModifier: GeometryEffect {
@@ -275,6 +215,7 @@ private extension Angle {
         self.init(degrees: Double(degrees))
     }
 }
+
 
 #if os(iOS) && DEBUG
 struct SprayChangeEffect_Previews: PreviewProvider {
